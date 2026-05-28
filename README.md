@@ -12,5 +12,4 @@ An immersive and interactive **FIFA World Cup 2026 Predictor** built with pure *
 - 💾 LocalStorage support for saved predictions
 
 ## 🌐 Live Demo
-
-https://https://mimahfujulislam.github.io/FIFA-WC-Predictor/
+https://mimahfujulislam.github.io/FIFA-WC-Predictor/
