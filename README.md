@@ -1,6 +1,5 @@
 # FIFA World Cup 2026 Predictor
-An immersive and interactive **FIFA World Cup 2026 Predictor** built with pure **HTML, CSS, and JavaScript**.  
-Create your own tournament journey by simulating group stages, predicting knockout winners, and revealing your custom world champion with a futuristic glassmorphism UI.
+An immersive and interactive **FIFA World Cup 2026 Predictor** built with pure **HTML, CSS, and JavaScript**. Create your own tournament journey by simulating group stages, predicting knockout winners, and revealing your custom world champion with a futuristic glassmorphism UI.
 
 
 ## ✨ Features
@@ -14,4 +13,4 @@ Create your own tournament journey by simulating group stages, predicting knocko
 
 ## 🌐 Live Demo
 
-🔗 https://https://mimahfujulislam.github.io/FIFA-WC-Predictor/
+https://https://mimahfujulislam.github.io/FIFA-WC-Predictor/
