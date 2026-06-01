@@ -1597,16 +1597,16 @@
     <script>
       const groups = [
         { letter: "A", teams: [
-          { name: "Qatar", code: "qa", rating: 70 },
-          { name: "Switzerland", code: "ch", rating: 84 },
-          { name: "Canada", code: "ca", rating: 78 },
-          { name: "Mexico", code: "mx", rating: 82 }
+          { name: "Mexico", code: "mx", rating: 82 },
+          { name: "South Africa", code: "za", rating: 74 },
+          { name: "South Korea", code: "kr", rating: 80 },
+          { name: "Czechia", code: "cz", rating: 78 }
         ]},
         { letter: "B", teams: [
-          { name: "Italy", code: "it", rating: 88 },
-          { name: "South Korea", code: "kr", rating: 80 },
-          { name: "Cameroon", code: "cm", rating: 74 },
-          { name: "Chile", code: "cl", rating: 76 }
+          { name: "Canada", code: "ca", rating: 78 },
+          { name: "Switzerland", code: "ch", rating: 84 },
+          { name: "Qatar", code: "qa", rating: 70 },
+          { name: "Bosnia & Herzegovina", code: "ba", rating: 72 }
         ]},
         { letter: "C", teams: [
           { name: "Brazil", code: "br", rating: 94 },
@@ -1640,7 +1640,7 @@
         ]},
         { letter: "H", teams: [
           { name: "Spain", code: "es", rating: 91 },
-          { name: "Cabo Verde", code: "cv", rating: 71 },
+          { name: "Cape Verde", code: "cv", rating: 71 },
           { name: "Saudi Arabia", code: "sa", rating: 73 },
           { name: "Uruguay", code: "uy", rating: 87 }
         ]},
@@ -1761,31 +1761,118 @@
       }, {});
     }
 
+    function matchProbabilities(teamA, teamB) {
+      const diff = teamA.rating - teamB.rating;
+      const rawA = 1 / (1 + Math.pow(10, -diff / 18));
+      const drawBase = clamp(0.24 * Math.exp(-Math.abs(diff) / 14) + 0.08, 0.08, 0.32);
+      return {
+        pA: rawA * (1 - drawBase),
+        pB: (1 - rawA) * (1 - drawBase),
+        pDraw: drawBase
+      };
+    }
+
+    function simulateGroupMatch(teamA, teamB) {
+      const { pA, pB, pDraw } = matchProbabilities(teamA, teamB);
+      const roll = Math.random();
+      let winner;
+
+      if (roll < pDraw) {
+        winner = "draw";
+      } else if (roll < pDraw + pA) {
+        winner = "A";
+      } else {
+        winner = "B";
+      }
+
+      const baseA = clamp(1.1 + (teamA.rating - teamB.rating) / 40, 0.6, 2.4);
+      const baseB = clamp(1.1 + (teamB.rating - teamA.rating) / 40, 0.6, 2.4);
+      let goalsA = Math.max(0, Math.round(baseA + Math.random() * 1.4 - 0.4));
+      let goalsB = Math.max(0, Math.round(baseB + Math.random() * 1.4 - 0.4));
+
+      if (winner === "A" && goalsA <= goalsB) {
+        goalsA = goalsB + 1;
+      }
+      if (winner === "B" && goalsB <= goalsA) {
+        goalsB = goalsA + 1;
+      }
+      if (winner === "draw") {
+        goalsA = goalsB = clamp(Math.round(Math.min(baseA, baseB) + Math.random() * 1.5), 0, 3);
+      }
+
+      return { goalsA, goalsB, winner };
+    }
+
     function randomGroupStats() {
       const next = {};
-      groups.forEach(group => {
-        const simulated = group.teams.map(team => {
-          const fullTeam = allTeams.find(item => item.name === team.name && item.group === group.letter);
-          const strength = fullTeam.rating + Math.random() * 20;
-          return { team: fullTeam, strength };
-        }).sort((a, b) => b.strength - a.strength);
 
-        simulated.forEach((entry, index) => {
-          const wins = Math.max(0, 3 - index - (Math.random() < 0.3 ? 1 : 0));
-          const draws = Math.min(3 - wins, Math.floor(Math.random() * 2));
-          const losses = 3 - wins - draws;
-          const gdBase = Math.round((entry.strength - 70) / 8) - index;
-          next[entry.team.id] = {
-            mp: 3,
-            w: wins,
-            d: draws,
-            l: losses,
-            gd: clamp(gdBase + Math.floor(Math.random() * 5) - 2, -6, 8),
-            pts: wins * 3 + draws,
-            group: group.letter
+      groups.forEach(group => {
+        const groupTeams = group.teams.map(team => {
+          const fullTeam = allTeams.find(item => item.name === team.name && item.group === group.letter);
+          return {
+            ...fullTeam,
+            mp: 0,
+            w: 0,
+            d: 0,
+            l: 0,
+            gf: 0,
+            ga: 0,
+            gd: 0,
+            pts: 0
+          };
+        });
+
+        for (let i = 0; i < groupTeams.length; i += 1) {
+          for (let j = i + 1; j < groupTeams.length; j += 1) {
+            const result = simulateGroupMatch(groupTeams[i], groupTeams[j]);
+
+            groupTeams[i].gf += result.goalsA;
+            groupTeams[i].ga += result.goalsB;
+            groupTeams[i].gd += result.goalsA - result.goalsB;
+            groupTeams[j].gf += result.goalsB;
+            groupTeams[j].ga += result.goalsA;
+            groupTeams[j].gd += result.goalsB - result.goalsA;
+            groupTeams[i].mp += 1;
+            groupTeams[j].mp += 1;
+
+            if (result.winner === "A") {
+              groupTeams[i].w += 1;
+              groupTeams[j].l += 1;
+              groupTeams[i].pts += 3;
+            } else if (result.winner === "B") {
+              groupTeams[j].w += 1;
+              groupTeams[i].l += 1;
+              groupTeams[j].pts += 3;
+            } else {
+              groupTeams[i].d += 1;
+              groupTeams[j].d += 1;
+              groupTeams[i].pts += 1;
+              groupTeams[j].pts += 1;
+            }
+          }
+        }
+
+        groupTeams.sort((a, b) =>
+          b.pts - a.pts ||
+          b.gd - a.gd ||
+          b.gf - a.gf ||
+          b.rating - a.rating ||
+          a.name.localeCompare(b.name)
+        );
+
+        groupTeams.forEach(team => {
+          next[team.id] = {
+            mp: team.mp,
+            w: team.w,
+            d: team.d,
+            l: team.l,
+            gd: team.gd,
+            pts: team.pts,
+            group: team.group
           };
         });
       });
+
       return next;
     }
 
@@ -1835,25 +1922,104 @@
       };
     }
 
-    function buildRoundOf32Slots(qualifiers) {
-      const winners = qualifiers.filter(team => team.groupRank === 1).sort((a, b) => a.group.localeCompare(b.group));
-      const runners = qualifiers.filter(team => team.groupRank === 2).sort((a, b) => b.group.localeCompare(a.group));
-      const thirds = qualifiers.filter(team => team.groupRank === 3).sort(compareStanding);
-      const field = [...winners, ...runners, ...thirds];
-      const slots = [];
+    function buildRoundOf32Slots(qualification) {
+      const winners = qualification.winners.sort((a, b) => a.group.localeCompare(b.group));
+      const runners = qualification.runners.sort((a, b) => a.group.localeCompare(b.group));
+      const thirds = qualification.thirds.sort(compareStanding);
 
-      for (let i = 0; i < field.length / 2; i += 1) {
-        slots.push(field[i]);
-        slots.push(field[field.length - 1 - i]);
-      }
+      const bestThirdSlots = [
+        { index: 3, groups: ["A", "B", "C", "D", "F"] },
+        { index: 9, groups: ["C", "D", "F", "G", "H"] },
+        { index: 13, groups: ["C", "E", "F", "H", "I"] },
+        { index: 15, groups: ["E", "H", "I", "J", "K"] },
+        { index: 17, groups: ["B", "E", "F", "I", "J"] },
+        { index: 19, groups: ["A", "E", "H", "I", "J"] },
+        { index: 25, groups: ["E", "F", "G", "I", "J"] },
+        { index: 29, groups: ["D", "E", "I", "J", "L"] }
+      ];
+
+      const slots = Array(32).fill(null);
+      const runnerByGroup = runners.reduce((map, team) => {
+        map[team.group] = team;
+        return map;
+      }, {});
+      const winnerByGroup = winners.reduce((map, team) => {
+        map[team.group] = team;
+        return map;
+      }, {});
+
+      const thirdAssignment = assignBestThirdSlots(thirds, bestThirdSlots);
+
+      slots[0] = runnerByGroup["A"];
+      slots[1] = runnerByGroup["B"];
+      slots[2] = winnerByGroup["E"];
+      slots[3] = thirdAssignment[3];
+      slots[4] = winnerByGroup["F"];
+      slots[5] = runnerByGroup["C"];
+      slots[6] = winnerByGroup["C"];
+      slots[7] = runnerByGroup["F"];
+      slots[8] = winnerByGroup["I"];
+      slots[9] = thirdAssignment[9];
+      slots[10] = runnerByGroup["E"];
+      slots[11] = runnerByGroup["I"];
+      slots[12] = winnerByGroup["A"];
+      slots[13] = thirdAssignment[13];
+      slots[14] = winnerByGroup["L"];
+      slots[15] = thirdAssignment[15];
+      slots[16] = winnerByGroup["D"];
+      slots[17] = thirdAssignment[17];
+      slots[18] = winnerByGroup["G"];
+      slots[19] = thirdAssignment[19];
+      slots[20] = runnerByGroup["K"];
+      slots[21] = runnerByGroup["L"];
+      slots[22] = winnerByGroup["H"];
+      slots[23] = runnerByGroup["J"];
+      slots[24] = winnerByGroup["B"];
+      slots[25] = thirdAssignment[25];
+      slots[26] = winnerByGroup["J"];
+      slots[27] = runnerByGroup["H"];
+      slots[28] = winnerByGroup["K"];
+      slots[29] = thirdAssignment[29];
+      slots[30] = runnerByGroup["D"];
+      slots[31] = runnerByGroup["G"];
 
       return slots;
+    }
+
+    function assignBestThirdSlots(thirds, slotDefinitions) {
+      const assignments = {};
+      const usedGroups = new Set();
+
+      const slotOrder = slotDefinitions
+        .map(slot => ({ ...slot, candidates: thirds.filter(team => slot.groups.includes(team.group)) }))
+        .sort((a, b) => a.candidates.length - b.candidates.length);
+
+      function search(index) {
+        if (index === slotOrder.length) return true;
+        const slot = slotOrder[index];
+        for (const team of slot.candidates) {
+          if (usedGroups.has(team.group)) continue;
+          assignments[slot.index] = team;
+          usedGroups.add(team.group);
+          if (search(index + 1)) return true;
+          usedGroups.delete(team.group);
+          delete assignments[slot.index];
+        }
+        return false;
+      }
+
+      if (search(0)) return assignments;
+      // Fallback: assign in order of best thirds when no exact slot match found.
+      slotDefinitions.forEach((slot, idx) => {
+        assignments[slot.index] = thirds[idx];
+      });
+      return assignments;
     }
 
   
     function render() {
       const qualification = calculateQualification();
-      const slots = buildRoundOf32Slots(qualification.qualifiers);
+      const slots = buildRoundOf32Slots(qualification);
       pruneInvalidPicks(slots);
       renderGroups(qualification.qualifiedMap);
       renderBracket(slots);
@@ -2130,18 +2296,18 @@
     }
 
     function weightedWinner(teamA, teamB) {
-      const aScore = teamA.rating + Math.random() * 28;
-      const bScore = teamB.rating + Math.random() * 28;
-      return aScore >= bScore ? teamA : teamB;
+      const probs = matchProbabilities(teamA, teamB);
+      return Math.random() < probs.pA / (probs.pA + probs.pB) ? teamA : teamB;
     }
 
     function getPredictionPercentages(teamA, teamB) {
       if (!teamA && !teamB) return [0, 0];
       if (teamA && !teamB) return [100, 0];
       if (!teamA && teamB) return [0, 100];
-      const total = teamA.rating + teamB.rating;
-      let a = Math.round((teamA.rating / total) * 100);
-      a = clamp(a, 34, 66);
+      const probs = matchProbabilities(teamA, teamB);
+      const normalized = probs.pA / (probs.pA + probs.pB);
+      let a = Math.round(normalized * 100);
+      a = clamp(a, 20, 80);
       return [a, 100 - a];
     }
 
